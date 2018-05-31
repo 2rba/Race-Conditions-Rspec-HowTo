@@ -5,7 +5,6 @@ class ConditionRacer
     @first = first
     @second = second
     @method_name = method_name
-    @timeout = 5
   end
 
   def run(&block)
@@ -17,11 +16,10 @@ class ConditionRacer
     set_breakpoints(breakpoint, first_mutex, second_mutex)
     first_thread, second_thread = start_threads(&block)
 
-    Timeout.timeout(@timeout) do
-      while !first_mutex.locked? && !second_mutex.locked? do
-        sleep 0.1
-      end
-    end
+    #wait till warm up
+    wait_till(5, raise_timeout: true) { first_mutex.locked? || second_mutex.locked? }
+    #wait till both finished or deadlocked
+    wait_till(2) { first_mutex.locked? && second_mutex.locked? }
 
     breakpoint.unlock
     second_thread.join
@@ -30,6 +28,18 @@ class ConditionRacer
 
   private
 
+  def wait_till(time, raise_timeout: false, &block)
+    begin
+      Timeout.timeout(time) do
+        until block.call do
+          sleep 0.1
+        end
+      end
+    rescue Timeout::Error => e
+      raise e if raise_timeout
+    end
+  end
+
   def set_breakpoints(breakpoint, first_mutex, second_mutex)
     first_original_method = @first.method(@method_name)
     allow(@first).to receive(@method_name) do |*args|
@@ -37,16 +47,16 @@ class ConditionRacer
       first_mutex.lock
       breakpoint.synchronize {}
       first_mutex.unlock
-      second_mutex.synchronize {}
       result
     end
 
     second_original_method = @second.method(@method_name)
     allow(@second).to receive(@method_name) do |*args|
+      result = second_original_method.call(*args)
       second_mutex.lock
       breakpoint.synchronize {}
       second_mutex.unlock
-      second_original_method.call(*args)
+      result
     end
   end
 
