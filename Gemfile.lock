@@ -73,6 +73,7 @@ GEM
     nio4r (2.3.1)
     nokogiri (1.8.2)
       mini_portile2 (~> 2.3.0)
+    pg (1.2.2)
     rack (2.0.5)
     rack-test (1.0.0)
       rack (>= 1.0, < 3)
@@ -140,11 +141,12 @@ DEPENDENCIES
   byebug
   jbuilder (~> 2.5)
   mysql2 (>= 0.4.4, < 0.6.0)
+  pg
   rails (~> 5.2.0)
   rspec-rails (~> 3.7)
 
 RUBY VERSION
-   ruby 2.5.0p0
+   ruby 2.6.2p47
 
 BUNDLED WITH
-   1.16.2
+   1.17.3
