@@ -1,11 +1,9 @@
 require 'rails_helper'
 
 describe KeyValue do
-  self.use_transactional_tests = false
+  include TransactionHelpers
+
   let(:key) { 'key' }
-  before do
-    KeyValue.delete_all
-  end
 
   describe '.inc' do
     context 'when new data' do
@@ -19,16 +17,21 @@ describe KeyValue do
       end
 
       context 'with race conditions' do
-        let(:first) { KeyValue }
-        let(:second) { KeyValue.dup }
+        let(:concurrent_thread) do
+          wait_for_thread_warmup(Thread.new { KeyValue.inc(key) })
+        end
 
-        it 'handle double create race condition' do
+        concurrent_transactions_enabled
+
+        before do
+          allow(KeyValue).to receive(:read_record)
+                               .and_wrap_original(&call_once_concurrent_thread)
+        end
+
+        it 'handles double create race condition' do
           expect do
-            ConditionRacer.new(first: first,
-                               second: second,
-                               method_name: :read_record).run do |obj|
-              obj.inc(key)
-            end
+            KeyValue.inc(key)
+            concurrent_thread.join
           end.not_to raise_exception
 
           expect(KeyValue.count).to eq(1)
@@ -50,15 +53,21 @@ describe KeyValue do
       end
 
       context 'with race conditions' do
-        let(:first) { KeyValue }
-        let(:second) { KeyValue.dup }
+        let(:concurrent_thread) do
+          wait_for_thread_warmup(Thread.new { KeyValue.inc(key) })
+        end
 
-        it 'handle double update race condition' do
-          ConditionRacer.new(first: first,
-                             second: second,
-                             method_name: :read_record).run do |obj|
-            obj.inc(key)
-          end
+        concurrent_transactions_enabled
+
+        before do
+          allow(KeyValue).to receive(:read_record).and_wrap_original(&call_once_concurrent_thread)
+        end
+
+        it 'handles double update race condition' do
+          expect do
+            KeyValue.inc(key)
+            concurrent_thread.join
+          end.not_to raise_exception
 
           expect(KeyValue.first.value).to eq(2)
         end
